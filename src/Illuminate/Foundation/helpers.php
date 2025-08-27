@@ -397,7 +397,7 @@ if (! function_exists('csrf_token')) {
      *
      * @throws \RuntimeException
      */
-    function csrf_token(): string
+    function csrf_token(): ?string
     {
         $session = app('session');
 
@@ -498,8 +498,9 @@ if (! function_exists('event')) {
      * @param  string|object  $event
      * @param  mixed  $payload
      * @param  bool  $halt
+     * @return array|null
      */
-    function event(...$args): ?array
+    function event(...$args)
     {
         return app('events')->dispatch(...$args);
     }
@@ -630,8 +631,9 @@ if (! function_exists('old')) {
      *
      * @param  string|null  $key
      * @param  \Illuminate\Database\Eloquent\Model|string|array|null  $default
+     * @return string|array|null
      */
-    function old($key = null, $default = null): string|array|null
+    function old($key = null, $default = null)
     {
         return app('request')->old($key, $default);
     }
