@@ -56,6 +56,7 @@ use Illuminate\Tests\Database\stubs\TestValueObject;
 use InvalidArgumentException;
 use LogicException;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\TestWith;
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;
 use stdClass;
@@ -71,13 +72,12 @@ class DatabaseEloquentModelTest extends TestCase
 
     protected function tearDown(): void
     {
-        parent::tearDown();
-
-        m::close();
         Carbon::setTestNow(null);
 
         Model::unsetEventDispatcher();
         Carbon::resetToStringFormat();
+
+        parent::tearDown();
     }
 
     public function testAttributeManipulation()
@@ -1317,6 +1317,23 @@ class DatabaseEloquentModelTest extends TestCase
         $this->assertSame('bar', $model->getConnection());
     }
 
+    #[TestWith(['Foo'])]
+    #[TestWith([ConnectionName::Foo])]
+    #[TestWith([ConnectionNameBacked::Foo])]
+    public function testConnectionEnums(string|\UnitEnum $connectionName)
+    {
+        EloquentModelStub::setConnectionResolver($resolver = m::mock(ConnectionResolverInterface::class));
+        $model = new EloquentModelStub;
+
+        $retval = $model->setConnection($connectionName);
+        $this->assertEquals($retval, $model);
+        $this->assertSame('Foo', $model->getConnectionName());
+
+        $resolver->shouldReceive('connection')->once()->with('Foo')->andReturn('bar');
+
+        $this->assertSame('bar', $model->getConnection());
+    }
+
     public function testToArray()
     {
         $model = new EloquentModelStub;
@@ -2458,6 +2475,34 @@ class DatabaseEloquentModelTest extends TestCase
         $this->assertContains('bar', $model->getAppends());
     }
 
+    public function testHasAppendedReturnsTrueWhenAttributeIsAppended()
+    {
+        $model = new EloquentModelAppendsStub;
+
+        $this->assertTrue($model->hasAppended('is_admin'));
+        $this->assertTrue($model->hasAppended('camelCased'));
+        $this->assertTrue($model->hasAppended('StudlyCased'));
+    }
+
+    public function testHasAppendedReturnsFalseWhenAttributeIsNotAppended()
+    {
+        $model = new EloquentModelAppendsStub;
+
+        $this->assertFalse($model->hasAppended('foo'));
+        $this->assertFalse($model->hasAppended('bar'));
+    }
+
+    public function testWithoutAppendsRemovesAppends()
+    {
+        $model = new EloquentModelAppendsStub;
+
+        $this->assertEquals(['is_admin', 'camelCased', 'StudlyCased'], $model->getAppends());
+
+        $model->withoutAppends();
+
+        $this->assertEmpty($model->getAppends());
+    }
+
     public function testGetMutatedAttributes()
     {
         $model = new EloquentModelGetMutatorsStub;
@@ -3448,7 +3493,7 @@ class DatabaseEloquentModelTest extends TestCase
 
     public function testModelToPrettyJson(): void
     {
-        $user = new EloquentModelStub(['name' => 'Mateus', 'active' => true]);
+        $user = new EloquentModelStub(['name' => 'Mateus', 'active' => true, 'number' => '123']);
         $results = $user->toPrettyJson();
         $expected = $user->toJson(JSON_PRETTY_PRINT);
 
@@ -3456,6 +3501,11 @@ class DatabaseEloquentModelTest extends TestCase
         $this->assertSame($expected, $results);
         $this->assertStringContainsString("\n", $results);
         $this->assertStringContainsString('    ', $results);
+
+        $results = $user->toPrettyJson(JSON_NUMERIC_CHECK);
+        $this->assertStringContainsString("\n", $results);
+        $this->assertStringContainsString('    ', $results);
+        $this->assertStringContainsString('"number": 123', $results);
     }
 
     public function testFillableWithMutators()
@@ -4426,4 +4476,16 @@ class StringableCastBuilder implements NativeStringable
     {
         return $this->cast;
     }
+}
+
+enum ConnectionName
+{
+    case Foo;
+    case Bar;
+}
+
+enum ConnectionNameBacked: string
+{
+    case Foo = 'Foo';
+    case Bar = 'Bar';
 }
